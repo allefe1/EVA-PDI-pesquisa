@@ -1,0 +1,43 @@
+import cv2
+import numpy as np
+import glob
+
+caminhos_fotos = glob.glob("azul/*.jpg")
+
+print("ARQUIVO | RUÍDO | ESCALA (px/mm) | AZUL | VERDE | VERMELHO")
+print("-" * 70)
+
+
+for caminho in caminhos_fotos:
+    imagem = cv2.imread(caminho)
+    
+    # 1. RUÍDO
+    recorte_cinza = cv2.cvtColor(imagem[1050:1400, 1200:1400], cv2.COLOR_BGR2GRAY)
+    ruido_eva = np.std(recorte_cinza)
+    
+    # 2. COR DO CARTÃO
+    cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+    _, mascara = cv2.threshold(cinza, 220, 255, cv2.THRESH_BINARY)
+    contornos, _ = cv2.findContours(mascara, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    maior_contorno = max(contornos, key=cv2.contourArea)
+    x, y, w, h = cv2.boundingRect(maior_contorno)
+    mx, my = int(w * 0.20), int(h * 0.20)
+    recorte_cartao = imagem[y+my : y+h-my, x+mx : x+w-mx]
+    
+    azul, verde, vermelho, _ = cv2.mean(recorte_cartao)
+    
+    # 3. MOEDA
+    desfoque = cv2.medianBlur(cinza, 15)
+    circulos = cv2.HoughCircles(desfoque, cv2.HOUGH_GRADIENT, dp=1, minDist=500,
+                                param1=50, param2=45, minRadius=20, maxRadius=100)
+    
+    escala = 0.0
+    if circulos is not None:
+        circulos = np.uint16(np.around(circulos))
+        diametro = circulos[0, 0][2] * 2
+        escala = diametro / 25.0
+
+    # imprimindo dados no terminal
+    nome_arquivo = caminho.split("\\")[-1] 
+    print(f"{nome_arquivo} | {ruido_eva:.2f} | {escala:.2f} | {azul:.2f} | {verde:.2f} | {vermelho:.2f}")
